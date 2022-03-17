@@ -1,0 +1,63 @@
+# 以下をコピー&ペーストすることでデータベースをプログラム内で適切に利用できるように修正できる
+
+create table devilsdata_copy
+(
+属性1 text,
+属性2 text,
+種族 text,
+名前 text,
+LV integer,
+HP integer,
+MP integer,
+魔法・特技1 text,
+魔法・特技2 text,
+魔法・特技3 text,
+相性 text
+);
+
+insert into devilsdata_copy
+select 
+属性1,
+属性2,
+種族,
+名前,
+LV,
+HP,
+MP,
+魔法・特技1,
+魔法・特技2,
+魔法・特技3,
+相性
+from devilsdata;
+
+create table spirit_fusion_copy 
+(
+精霊A text,
+精霊B text,
+ランク変動値 integer
+);
+
+
+insert into spirit_fusion_copy
+select 種族, 精霊,ランク変動値 from spirit_fusion;
+
+create table exceptional
+(
+悪魔A text,
+悪魔B text,
+合体結果 text
+);
+
+insert into exceptional
+select "悪魔A", "悪魔B","合体結果"
+from exceptional_fusion;
+
+
+drop table devilsdata;
+alter table devilsdata_copy rename to devilsdata;
+
+drop table spirit_fusion;
+alter table spirit_fusion_copy rename to spirit_fusion;
+
+drop table exceptional_fusion;
+alter table exceptional rename to exceptional_fusion;
