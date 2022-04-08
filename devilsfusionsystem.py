@@ -2,14 +2,8 @@
 import itertools, collections, random
 import os,glob
 from pprint import pprint
-from logging import getLogger
 import sqlite3
 
-
-# 自作プログラム群
-import windowsystem
-
-# 別途データベース、悪魔リストなどの一連のファイルを管理するためのクラスを作っておいたほうがいい？
 
 class DevilFusionSystem:
     devils = []       # リストにはDevilクラスのオブジェクトが格納される
@@ -30,7 +24,7 @@ class DevilFusionSystem:
             受け取った仲魔リストから合体可能な組み合わせのリストを生成し
             実際の悪魔合体処理の準備を済ませておく
         '''
-        def reset_data(self):
+        def reset_data():
             self.devils = []
             self.devils_set = set()
             self.combinations = []
@@ -84,8 +78,8 @@ class DevilFusionSystem:
                 # 悪魔名をキーとして、悪魔オブジェクトと対応付ける
                 self.results_dict[dev] = Devil(dev)
                 print(self.results_dict[dev],":",dev)
+
                 # 辞書内の悪魔オブジェクトに今回の組み合わせ情報を追加
-                print(temp_list)
                 self.results_dict[dev].collect_materials(temp_list)
             else:   # 既に一度登録済みの悪魔については、そのままその要素に組み合わせ情報だけ追加する
                 self.results_dict[dev].collect_materials(temp_list)
@@ -97,7 +91,7 @@ class DevilFusionSystem:
         '''
         if new_devil == None: # 合体結果が存在しない場合はそのまま値を返して終了
             return None
-
+            
         for idx in range(len(new_devil)):
             devil_axb = new_devil[idx]
             if devil_axb == devil_a.info["名前"] or devil_axb == devil_b.info["名前"]:
@@ -224,6 +218,7 @@ class DevilFusionSystem:
                 new_devil2 = self._darkfusion(devil_b,devil_a)
                 new_devil = [new_devil1, new_devil2]
                 new_patterns = [[devil_a,devil_b],[devil_b,devil_a]]
+                multiflag = True
             elif mode == "人間合体":
                 new_devil = self._humanfusion(devil_a,devil_b)
             else:        # 特殊合体
@@ -240,20 +235,17 @@ class DevilFusionSystem:
             # 合体結果と合体前の悪魔2体の組み合わせ情報を記録
             if multiflag:
                 for idx in range(len(new_devil)):
-                    self._collect_fusionmaterials(new_devil[idx],new_patterns[idx])
+                    devil_a,devil_b = new_patterns[idx]
+                    self._collect_fusionmaterials(new_devil[idx],devil_a,devil_b)
             else:
                 self._collect_fusionmaterials(new_devil,devil_a,devil_b)
-
 
         print("全ての合体結果の算出が完了しました")
         self._debugresult()
         return 
 
     def _exceptionalfusion(self,devil_a, devil_b):
-        '''
-            特殊合体を行う
-        '''
-        
+        ''' 特殊合体を行う'''
         with sqlite3.connect(self.dbpath) as conn:
             cur = conn.cursor()
 
@@ -283,11 +275,7 @@ class DevilFusionSystem:
         return answer
 
     def _humanfusion(self,devil_a, devil_b):
-        '''
-            人間合体を行う
-            人間合体は合体結果算出が特殊なので、現時点ではどうするか考え中
-        '''
-
+        '''人間合体を行う'''
         mankind = ["メシア教徒", "ガイア教徒"]
         namelist = set([dev.info["名前"] for dev in self.devils]) # 仲魔の名前リストを取得
 
@@ -908,6 +896,8 @@ class DevilFusionSystemBy3(DevilFusionSystem):
                 devilAxBxC = self._dark3dfusion(devil_a,devil_b,devil_c)
             else:        # 合体不可
                 devilAxBxC = None
+            
+            devilAxBxC = self._check_3dduplication(devil_a,devil_b,devil_c,devilAxBxC)
 
             __debugprint(devilAxBxC,mode,devil_a,devil_b,devil_c)
             self._collect_fusionmaterials(devilAxBxC,devil_a,devil_b,devil_c)
@@ -917,10 +907,14 @@ class DevilFusionSystemBy3(DevilFusionSystem):
 
     def _check_3dduplication(self,a,b,c,axbxc):
         '''合体結果として導かれた悪魔が既に存在している場合、外道スライムに合体結果が変更となる'''
+        a = a.info["名前"]
+        b = b.info["名前"]
+        c = c.info["名前"]
         if axbxc in [a,b,c]:
+            print(a,b,c,axbxc,":","これはまずい")
             return "スライム"
         else:
-            return None
+            return axbxc # 問題がなければそのまま返す
 
     def _normal3dfusion(self,deva,devb,devc,rev_val=0):
         '''
@@ -933,7 +927,7 @@ class DevilFusionSystemBy3(DevilFusionSystem):
             sql_rand = '''SELECT "名前" FROM devilsdata WHERE "属性1"="NEUTRAL"'''
             expect = self._access_database(sql_rand)
             randidx = random.randint(0,len(expect)-1) # 得られるデータ数の範囲内でランダムにインデックスを取得
-            return expect[randidx][0] + "？"
+            return expect[randidx][0]
 
         def normal3dfusion_a() -> str: # 3身合体表Aを参照して結果を得る
             ## レベルのより低い2体(悪魔Aと悪罵B)の大種族情報を取りだす
@@ -982,7 +976,7 @@ class DevilFusionSystemBy3(DevilFusionSystem):
         
         # ランダム合体でない場合は、得られた種族情報とレベル基準値から最終結果を求める
         sql_race = '''SELECT "LV","名前","種族(漢字)" FROM devilsdata
-        WHERE "種族(漢字)"="{}"'''.format(axbxc)
+        WHERE "種族(漢字)"="{}" ORDER BY "LV" ASC'''.format(axbxc)
         expect = sorted(self._access_database(sql_race))
         for lv,devil,race in expect:
             #print(base_lv,":",lv,devil,race)
@@ -1009,10 +1003,14 @@ class DevilFusionSystemBy3(DevilFusionSystem):
             return None
 
         # 2身合体(親クラス)のメソッドを用い重複をチェック、合体結果を悪魔オブジェクト化
-        dev_axb = self._check_duplication(deva,devb,[dev_axb])  # 引数・戻り値ともにリストで行うことに留意する
-        dev_axb = Devil(dev_axb[0])#;print("{}×{} =".format(deva,devb),dev_axb)
-    
+        dev_axb = self._check_duplication(deva,devb,dev_axb)
+
+        # 重複検証の結果合体不可と判定された場合はやはりNoneを返す
+        if not(dev_axb):
+            return None
+        
         # 2身合体(親クラス)のメソッドを用いて残りの2体の合体方式を確認
+        dev_axb = Devil(dev_axb)
         mode = self._check_fusionpattern(dev_axb,devc)
         
         # 更に悪魔AxBと悪魔Cの合体を行う
@@ -1087,15 +1085,6 @@ class DevilFusionSystemBy3(DevilFusionSystem):
         print(answer)
         return answer
 
-        
-    
-
-
-
-
-    
-
-
 class Devil:
     '''
         データベースにアクセスして対象悪魔に関する一連の情報を取得
@@ -1149,8 +1138,6 @@ class Devil:
         else:
             return f'{self.info["種族(漢字)"]} {self.info["名前"]}'
 
-
-
 class DevilParty:
     '''
         仲魔にした悪魔の情報を適切な様式で格納、保管し、
@@ -1171,13 +1158,15 @@ class DevilParty:
             self.filepath = file
         if database:
             self.dbpath = database
-
-
+        self.set_devilsdata()
+    
+    def set_devilsdata(self,):
         # 仲魔データの存在チェック
         if not(os.path.exists(self.filepath)):
             print("THE FILE YOU ASSINGNED IS NOT FOUND...")
             return None
         
+        self.devils_list = []
         # 仲魔リストの生成
         with open(self.filepath, 'r', encoding='UTF-8') as f:
             for d in f:
@@ -1189,7 +1178,8 @@ class DevilParty:
             print("THE DATABASE FILEPATH MAY NOT BE EXIST....")
             return None
 
-        self.inspect_party() # 仲魔リストの整合性を確保してコンストラクションを終了
+        self.inspect_party() # 仲魔リストの整合性を確保
+        print(self.devils_list)
     
     def inspect_party(self):
         '''
@@ -1222,15 +1212,17 @@ def main():
     def exe_dfs3():
         dp = DevilParty()
         dfs3 = DevilFusionSystemBy3()
+        dp.set_devilsdata()
         dfs3.set_devilparty(dp.devils_list)
         dfs3.search_results()
         return
     def exe_dfs2():
         dp = DevilParty()
         dfs2 = DevilFusionSystem()
+        dp.set_devilsdata()
         dfs2.set_devilparty(dp.devils_list)
         dfs2.search_results()
-    if input()=="1":
+    if input("3身合体を行う場合は[1]を、2身合体はそれ以外の値を入力してください: ")=="1":
         exe_dfs3()
     else:
         exe_dfs2()
